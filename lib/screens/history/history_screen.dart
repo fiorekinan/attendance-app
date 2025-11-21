@@ -14,22 +14,27 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen> {
   final AuthServices _authServices = AuthServices();
   final FirestoreService _firestoreService = FirestoreService();
-
   @override
   Widget build(BuildContext context) {
     final user = _authServices.currentUser;
-
     if (user == null) {
       return Scaffold(
-        appBar: AppBar(title: Text('Attendance History')),
-        body: Center(child: Text('Please login to view history')),
+        appBar: AppBar(
+          title: Text('Attendance History'),
+        ),
+        body: Center(
+          child: Text('Please login to view history'),
+        ),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text('Attendance History')),
+      appBar: AppBar(
+        title: Text('Attendance History'),
+        
+      ),
       body: StreamBuilder<List<AttendanceRecord>>(
-        stream: FirestoreService.getAttendanceRecord(user.uid),
+        stream: _firestoreService.getAttendanceRecord(user.uid),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(
@@ -38,11 +43,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
           }
 
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'),);
+            return Center(
+              child: Text('Error: ${snapshot.error}'),
+            );
           }
 
           final records = snapshot.data ?? [];
-
           if (records.isEmpty) {
             return _buildEmptyState();
           }
@@ -63,21 +69,22 @@ class _HistoryScreenState extends State<HistoryScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.history, size: 80, color: Colors.grey[400],),
-          SizedBox(height: 16),
+          SizedBox(height: 16,),
           Text(
-            'No attendance records yet',
+            "No Attendance record yet",
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: Colors.grey[600]
             ),
           ),
           SizedBox(height: 8),
           Text(
-            'Check in to start tracking your attendance',
+            'Check-in to start tracking your attendance',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: Colors.grey[500]
-            )
+          )
           )
         ],
+      
       ),
     );
   }

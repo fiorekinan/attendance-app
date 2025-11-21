@@ -1,4 +1,5 @@
 import 'package:attendance_app/models/attendance_record.dart';
+import 'package:attendance_app/screens/history/history_screen.dart';
 import 'package:attendance_app/screens/home/widgets/action_button.dart';
 import 'package:attendance_app/screens/home/widgets/attendance_card.dart';
 import 'package:attendance_app/screens/home/widgets/profile_card.dart';
@@ -27,12 +28,12 @@ class _HomeScreenState extends State<HomeScreen> {
     _listenToTodayRecord();
   }
 
+  // ini digunakan untuk mendengarkan semua yang terjaid di homescreen
   void _listenToTodayRecord() {
-    final 
-    user = _authServices.currentUser;
-    if (user != null) {
-      _firestoreService.getTodayRecordStream(user.uid).listen((record){
-        if (mounted) setState(() => _todayRecord =  record);
+    final user = _authServices.currentUser;
+    if (user != null) { // kalo usernya ada
+      _firestoreService.getTodayRecordStream(user.uid).listen((record) {
+        if (mounted) setState(() => _todayRecord = record);
       });
     }
   }
@@ -64,14 +65,16 @@ class _HomeScreenState extends State<HomeScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              photoPath != null ? 'Check in successfully with photo!' : 'Check in successfully',
+              photoPath != null 
+                ? 'Check in successfully with photo'
+                : 'Check in successfully'
             ),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 2),
           )
         );
       }
-    } catch (e) {
+    } catch (e) { // error ga berhasil check in
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -86,15 +89,17 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _checkOut({String? photoPath}) async {
-    if (_todayRecord == null) return;
+    if (_todayRecord == null) return; 
+
     setState(() => _isLoading = true);
 
     try {
       String? photoKey;
       if (photoPath != null) {
-        photoKey = await _storageServices.uploadAttendancePhoto(photoPath, 'checkout');}
+        photoKey = await _storageServices.uploadAttendancePhoto(photoPath, 'checkout');
+      }
 
-        final updateRecord = AttendanceRecord(
+      final updateRecord = AttendanceRecord(
           id: _todayRecord!.id,
           userId: _todayRecord!.userId,
           checkInTime: _todayRecord!.checkInTime,
@@ -104,24 +109,27 @@ class _HomeScreenState extends State<HomeScreen> {
           checkOutPhotoPath: photoKey
         );
 
-
         await _firestoreService.updateAttendaceRecord(updateRecord);
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(photoPath != null ? 'Checked out successfully with photo!' : 'Checked out successfully'),
+              content: Text(
+                photoPath != null
+                  ? 'Checked out successfully with photo!'
+                  : 'Checked out successfully!'
+              ),
               backgroundColor: Colors.green,
               duration: Duration(seconds: 2),
             )
           );
         }
-
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to check out ${e.toString()}'
+            content: Text(
+              'Error checking out: ${e.toString()}'
             ),
             backgroundColor: Colors.red,
           )
@@ -143,15 +151,15 @@ class _HomeScreenState extends State<HomeScreen> {
         elevation: 0,
         actions: [
           IconButton(
-            icon: Icon(Icons.history),
-            onPressed: () {
-              //TODO: go to history screen
-            },
-            ),
-            IconButton(
-              icon: Icon(Icons.logout),
-              onPressed: () async => await _authServices.signOut(),
-              )
+            icon: Icon( Icons.history),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (context) => HistoryScreen())
+            )
+          ),
+          IconButton(
+            icon: Icon(Icons.logout),
+            onPressed: () async => await _authServices.signOut(),
+          )
         ],
       ),
       body: Container(
@@ -163,7 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Colors.blue[700]!,
               Colors.grey[50]!
             ],
-            stops: [0, 0, 0.3]
+            stops: [0.0, 0, 0.3]  // posisi ditengah2
           )
         ),
         child: SingleChildScrollView(
