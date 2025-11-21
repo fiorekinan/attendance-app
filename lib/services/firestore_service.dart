@@ -65,4 +65,29 @@ class FirestoreService {
       {...querySnapshot.docs.first.data(), 'id': querySnapshot.docs.first.id}
     );
   }
+
+  // create new attendance record
+  Future<String> createAttendanceRecord(AttendanceRecord record) async {
+    final docRef = await  _firestore.collection('attendance').add(record.toJson());
+    return docRef.id;
+  }
+
+  // update existing attendance record
+  Future<void> updateAttendaceRecord(AttendanceRecord record) async {
+    await _firestore
+        .collection('attendance')
+        .doc(record.id)
+        .update(record.toJson());
+  }
+
+  // create or update attendance record
+  Future<void> saveAttendanceRecord(AttendanceRecord record) async {
+    if (record.id == '1' || record.id.isEmpty) {
+      // new record for creating auto generated ID
+      await createAttendanceRecord(record);
+    } else {
+      // update existing record
+      await updateAttendaceRecord(record);
+    }
+  }
 }
