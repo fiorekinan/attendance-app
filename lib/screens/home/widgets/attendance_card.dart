@@ -1,176 +1,93 @@
 import 'package:attendance_app/models/attendance_record.dart';
-import 'package:attendance_app/screens/home/widgets/photo_viewer.dart';
-import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class AttendanceCard extends StatelessWidget {
-  final AttendanceRecord? todayRecord;
+class FirestoreService {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  const AttendanceCard({super.key, this.todayRecord});
+  // get attendance records for user (real-time stream)
+  Stream<List<AttendanceRecord>> getAttendanceRecord(String userId) {
+    // firestore = utk menyimpan semuanya -> user id, check in time, dkk
+    // realtime database = berkaitan dengan gambar
+    return _firestore
+      .collection('attendance')
+      .where('user_id', isEqualTo: userId)
+      .orderBy('check_in_time', descending: true)
+      .snapshots()
+      .map((snapshot) {
+        return snapshot.docs
+        .map((doc) => AttendanceRecord.fromJson({...doc.data(), 'id': doc.id}))
+        .toList();
+      });
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    final hasCheckedIn = todayRecord != null;
-    final hasCheckedOut = todayRecord?.checkOutTime != null;
+  // get today's attendance record (real-time screen)
+  Stream<AttendanceRecord?> getTodayRecordStream(String userId) {
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    final endOfDay = startOfDay.add(Duration(days: 1));
 
-    final (cardColor, iconColor, iconData, statusText) = _getCardStyle(hasCheckedIn, hasCheckedOut);  // ini biar reusable soalnya ada 3 jenis card (not checkin, currently workin, complete)
+    return _firestore
+        .collection('attendance')
+        .where('user_id', isEqualTo: userId)
+        .orderBy('check_in_time', descending: true)
+        .limit(10)
+        .snapshots()
+        .map((snapshot) {
+          // filter today's record on client side
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            final checkInTime = DateTime.parse(data['check_in_time'] as String);
 
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: cardColor
-        ),
-        padding: EdgeInsets.all(24),
-        child: Column(
-          children: [
-            _buildIconCntainer(iconData, iconColor),
-            SizedBox(height: 16),
-            Text(
-              statusText,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: iconColor
-              ),
-            ),
-            if (hasCheckedIn)...[
-              SizedBox(height: 20),
-              _buildTimeDetails(iconColor),
-              if (todayRecord!.checkInPhotoPath != null || todayRecord!.checkOutPhotoPath != null)
-              _buildPhotoRow(),
-            ]
-          ],
-        ),
-      ),
+            if (checkInTime.isAfter(startOfDay) && checkInTime.isBefore(endOfDay)) {
+              return AttendanceRecord.fromJson({...data, 'id': doc.id});
+            }
+          }
+          return null;
+        });
+  }
+
+  // get today's attendance record (on-time fetch)
+  Future<AttendanceRecord?> getTodayRecord(String userId) async {
+    final today = DateTime.now();
+    final startOfDay = DateTime(today.year, today.month, today.day);
+    final endOfDay = startOfDay.add(Duration(days: 1));
+
+    final querySnapshot = await _firestore
+        .collection('attendance')
+        .where('user_id', isEqualTo: userId)
+        .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+        .where('date', isLessThan: Timestamp.fromDate(endOfDay))
+        .get();
+
+    if (querySnapshot.docs.isEmpty) return null;
+
+    return AttendanceRecord.fromJson(
+      {...querySnapshot.docs.first.data(), 'id': querySnapshot.docs.first.id}
     );
   }
 
-  (Color, Color, IconData, String) _getCardStyle(bool hasCheckedIn, bool hasCheckedOut) {
-    if (!hasCheckedIn) {
-      return (Colors.orange[50]!, Colors.orange[600]!, Icons.access_time_rounded, 'Not Check In');
-    } else if (hasCheckedOut) {
-      return (Colors.green[50]!, Colors.green[600]!, Icons.check_circle_rounded, 'Work Complete');
+  // create new attendance record
+  Future<String> createAttendanceRecord(AttendanceRecord record) async {
+    final docRef = await  _firestore.collection('attendance').add(record.toJson());
+    return docRef.id;
+  }
+
+  // update existing attendance record
+  Future<void> updateAttendaceRecord(AttendanceRecord record) async {
+    await _firestore
+        .collection('attendance')
+        .doc(record.id)
+        .update(record.toJson());
+  }
+
+  // create or update attendance record
+  Future<void> saveAttendanceRecord(AttendanceRecord record) async {
+    if (record.id == '1' || record.id.isEmpty) {
+      // new record for creating auto generated ID
+      await createAttendanceRecord(record);
     } else {
-      return (Colors.blue[50]!, Colors.blue[600]!, Icons.work_rounded, 'Currently Working');
+      // update existing record
+      await updateAttendaceRecord(record);
     }
-  }
-
-  Widget _buildIconCntainer(IconData icon, Color color) {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.3),
-            blurRadius: 10,
-            spreadRadius: 2
-          )
-        ]
-      ),
-      child: Icon(icon, size: 48, color: color),
-    );
-  }
-
-  Widget _buildTimeDetails(Color color) {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12)
-      ),
-      child: Column(
-        children: [
-          _TimeRow(
-            icon: Icons.login_rounded,
-            label: 'check_in',
-            value: DateFormat('hh:mm a').format(todayRecord!.checkInTime),
-            color: color,
-          ),
-          if (todayRecord!.checkOutTime != null) ...[
-            SizedBox(height: 12),
-            _TimeRow(
-              icon: Icons.logout_rounded,
-              label: 'Check Out',
-              value: DateFormat('hh:mm a').format(todayRecord!.checkOutTime!),
-              color: color,
-            )
-          ]
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPhotoRow() {
-    return Padding(
-      padding: EdgeInsets.only(top: 16),
-      child: Row(
-        children: [
-          if (todayRecord!.checkInPhotoPath != null)
-          Expanded(
-            child: PhotoViewer(
-              photoKey: todayRecord!.checkInPhotoPath,
-              label: 'Check-In',
-            ),
-          ),
-          if (todayRecord!.checkInPhotoPath != null && todayRecord!.checkOutPhotoPath != null)
-            SizedBox(width: 8),
-          if (todayRecord!.checkOutPhotoPath != null)
-            Expanded(
-              child: PhotoViewer(
-                photoKey: todayRecord!.checkOutPhotoPath,
-                label: 'Check-Out',
-              ),
-            )
-        ],
-      ),
-    );
-  }
-}
-
-class _TimeRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final Color color;
-
-  const _TimeRow({super.key, required this.icon, required this.label, required this.value, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          padding: EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8)
-          ),
-          child: Icon(icon, color: color, size: 20),
-        ),
-        SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey
-            ),
-          ),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: color
-          ),
-        )
-      ],
-    );
   }
 }
